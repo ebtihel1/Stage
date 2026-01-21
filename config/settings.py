@@ -77,6 +77,7 @@ AUTH_USER_MODEL = 'users.User'
 # Configuration Django REST Framework (Source: 3.1 & 4.1.5 DIP)
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
