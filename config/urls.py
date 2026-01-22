@@ -22,5 +22,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('apps.users.urls')),
     path('api/portfolio/', include('apps.portfolio.urls')),
-    path('api-auth/', include('rest_framework.urls')),  # Login/Logout pour DRF
+    path('api-auth/', include('rest_framework.urls')),  
 ]

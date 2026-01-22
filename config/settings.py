@@ -31,7 +31,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     
   'apps.users.apps.UsersConfig',     
-'apps.portfolio.apps.PortfolioConfig',
+  'apps.portfolio.apps.PortfolioConfig',
 ]
 
 MIDDLEWARE = [
