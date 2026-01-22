@@ -87,3 +87,45 @@ class AssetFactoryTests(TestCase):
         
         AssetFactory.register('CUSTOM', create_custom_asset)
         self.assertIn('CUSTOM', AssetFactory.get_available_types())
+
+    def test_factory_with_all_required_fields(self):
+        asset = AssetFactory.create(
+            'STOCK',
+            user_id=self.user.id,
+            symbol='GOOGL',
+            name='Google',
+            quantity=Decimal('5'),
+            purchase_price=Decimal('100'),
+            current_price=Decimal('120'),
+            purchase_date='2024-01-01'
+        )
+        self.assertIsNotNone(asset.id)
+        self.assertEqual(asset.symbol, 'GOOGL')
+        self.assertEqual(asset.name, 'Google')
+        self.assertEqual(asset.quantity, Decimal('5'))
+
+    def test_factory_creates_with_decimal_quantity(self):
+        asset = AssetFactory.create(
+            'CRYPTO',
+            user_id=self.user.id,
+            symbol='ETH',
+            name='Ethereum',
+            quantity=Decimal('0.5'),
+            purchase_price=Decimal('2000'),
+            current_price=Decimal('2500'),
+            purchase_date='2024-01-01'
+        )
+        self.assertEqual(asset.quantity, Decimal('0.5'))
+
+    def test_factory_case_sensitive(self):
+        with self.assertRaises(ValueError):
+            AssetFactory.create(
+                'stock',  # lowercase, should fail
+                user_id=self.user.id,
+                symbol='AAPL',
+                name='Apple',
+                quantity=Decimal('1'),
+                purchase_price=Decimal('100'),
+                current_price=Decimal('100'),
+                purchase_date='2024-01-01'
+            )

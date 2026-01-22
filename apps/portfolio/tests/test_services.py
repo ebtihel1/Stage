@@ -254,3 +254,155 @@ class PortfolioServiceTests(TestCase):
         summary = self.service.get_portfolio_summary(other_user.id)
         self.assertEqual(summary['asset_count'], 0)
         self.assertEqual(summary['total_current_value'], 0)
+
+
+class AnnualizedReturnCalculatorTests(TestCase):
+    
+    def test_annualized_return_positive(self):
+        from datetime import date, timedelta
+        yesterday = date.today() - timedelta(days=365)
+        asset = Asset(
+            asset_type='STOCK',
+            symbol='AAPL',
+            name='Apple',
+            quantity=Decimal('10'),
+            purchase_price=Decimal('100'),
+            current_price=Decimal('150'),
+            purchase_date=yesterday
+        )
+        calculator = AnnualizedReturnCalculator()
+        annualized = calculator.calculate(asset)
+        self.assertGreater(annualized, 0)
+
+    def test_annualized_return_negative(self):
+        from datetime import date, timedelta
+        yesterday = date.today() - timedelta(days=365)
+        asset = Asset(
+            asset_type='STOCK',
+            symbol='AAPL',
+            name='Apple',
+            quantity=Decimal('10'),
+            purchase_price=Decimal('100'),
+            current_price=Decimal('80'),
+            purchase_date=yesterday
+        )
+        calculator = AnnualizedReturnCalculator()
+        annualized = calculator.calculate(asset)
+        self.assertLess(annualized, 0)
+
+    def test_annualized_return_zero_purchase_price(self):
+        from datetime import date, timedelta
+        yesterday = date.today() - timedelta(days=365)
+        asset = Asset(
+            asset_type='STOCK',
+            symbol='AAPL',
+            name='Apple',
+            quantity=Decimal('10'),
+            purchase_price=Decimal('0'),
+            current_price=Decimal('150'),
+            purchase_date=yesterday
+        )
+        calculator = AnnualizedReturnCalculator()
+        annualized = calculator.calculate(asset)
+        self.assertEqual(annualized, 0.0)
+
+    def test_annualized_return_same_day(self):
+        from datetime import date
+        today = date.today()
+        asset = Asset(
+            asset_type='STOCK',
+            symbol='AAPL',
+            name='Apple',
+            quantity=Decimal('10'),
+            purchase_price=Decimal('100'),
+            current_price=Decimal('150'),
+            purchase_date=today
+        )
+        calculator = AnnualizedReturnCalculator()
+        annualized = calculator.calculate(asset)
+        self.assertEqual(annualized, 0.0)
+
+
+class PortfolioServiceDetailTests(TestCase):
+    
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        self.service = PortfolioService(
+            asset_repository=DjangoAssetRepository(),
+            calculator=SimpleROICalculator()
+        )
+        
+        self.asset1 = Asset.objects.create(
+            user=self.user,
+            asset_type='STOCK',
+            symbol='AAPL',
+            name='Apple',
+            quantity=Decimal('10'),
+            purchase_price=Decimal('100'),
+            current_price=Decimal('150'),
+            purchase_date='2024-01-15'
+        )
+
+    def test_get_asset_detail(self):
+        asset = self.service.get_asset_detail(self.user.id, self.asset1.id)
+        self.assertEqual(asset.symbol, 'AAPL')
+        self.assertEqual(asset.id, self.asset1.id)
+
+    def test_get_asset_detail_not_found(self):
+        with self.assertRaises(Asset.DoesNotExist):
+            self.service.get_asset_detail(self.user.id, 9999)
+
+    def test_get_asset_detail_wrong_user(self):
+        other_user = User.objects.create_user(
+            username='otheruser',
+            email='other@example.com',
+            password='testpass123'
+        )
+        with self.assertRaises(Asset.DoesNotExist):
+            self.service.get_asset_detail(other_user.id, self.asset1.id)
+
+    def test_update_asset(self):
+        new_data = {'current_price': Decimal('200')}
+        updated = self.service.update_asset(self.user.id, self.asset1.id, new_data)
+        self.assertEqual(updated.current_price, Decimal('200'))
+
+    def test_portfolio_summary_by_type(self):
+        Asset.objects.create(
+            user=self.user,
+            asset_type='BOND',
+            symbol='US10Y',
+            name='US Treasury',
+            quantity=Decimal('5'),
+            purchase_price=Decimal('100'),
+            current_price=Decimal('102'),
+            purchase_date='2024-01-10'
+        )
+        summary = self.service.get_portfolio_summary(self.user.id)
+        self.assertIn('by_type', summary)
+        self.assertIsNotNone(summary['by_type'])
+
+    def test_portfolio_performance_single_asset(self):
+        performance = self.service.get_portfolio_performance(self.user.id)
+        self.assertEqual(performance['total_assets'], 1)
+        self.assertIsNotNone(performance['best_performer'])
+        self.assertIsNotNone(performance['worst_performer'])
+
+    def test_portfolio_performance_multiple_assets(self):
+        Asset.objects.create(
+            user=self.user,
+            asset_type='STOCK',
+            symbol='MSFT',
+            name='Microsoft',
+            quantity=Decimal('5'),
+            purchase_price=Decimal('200'),
+            current_price=Decimal('180'),
+            purchase_date='2024-01-10'
+        )
+        performance = self.service.get_portfolio_performance(self.user.id)
+        self.assertEqual(performance['total_assets'], 2)
+        self.assertGreater(performance['best_performer']['performance'], 
+                          performance['worst_performer']['performance'])

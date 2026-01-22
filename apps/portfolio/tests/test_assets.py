@@ -230,3 +230,250 @@ class AssetPropertiesTests(APITestCase):
             purchase_date='2024-01-15'
         )
         self.assertEqual(asset.performance_percentage, -20.0)
+
+
+class AssetDuplicateTests(APITestCase):
+    """Tests pour vérifier la validation des doublons"""
+    
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_create_duplicate_asset_same_user(self):
+        # Créer le premier actif
+        data1 = {
+            'asset_type': 'STOCK',
+            'symbol': 'AAPL',
+            'name': 'Apple Inc.',
+            'quantity': Decimal('10'),
+            'purchase_price': Decimal('150.50'),
+            'current_price': Decimal('175.25'),
+            'purchase_date': '2024-01-15'
+        }
+        response1 = self.client.post('/api/portfolio/assets/', data1)
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+        
+        # Tenter de créer le même actif
+        response2 = self.client.post('/api/portfolio/assets/', data1)
+        self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_different_symbol_same_date_allowed(self):
+        data1 = {
+            'asset_type': 'STOCK',
+            'symbol': 'AAPL',
+            'name': 'Apple Inc.',
+            'quantity': Decimal('10'),
+            'purchase_price': Decimal('150.50'),
+            'current_price': Decimal('175.25'),
+            'purchase_date': '2024-01-15'
+        }
+        response1 = self.client.post('/api/portfolio/assets/', data1)
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+        
+        # Créer avec un autre symbole à la même date
+        data2 = {
+            'asset_type': 'STOCK',
+            'symbol': 'MSFT',
+            'name': 'Microsoft',
+            'quantity': Decimal('5'),
+            'purchase_price': Decimal('300'),
+            'current_price': Decimal('350'),
+            'purchase_date': '2024-01-15'
+        }
+        response2 = self.client.post('/api/portfolio/assets/', data2)
+        self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
+
+    def test_create_same_symbol_different_date_allowed(self):
+        data1 = {
+            'asset_type': 'STOCK',
+            'symbol': 'AAPL',
+            'name': 'Apple Inc.',
+            'quantity': Decimal('10'),
+            'purchase_price': Decimal('150.50'),
+            'current_price': Decimal('175.25'),
+            'purchase_date': '2024-01-15'
+        }
+        response1 = self.client.post('/api/portfolio/assets/', data1)
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+        
+        # Créer le même symbole à une date différente
+        data2 = {
+            'asset_type': 'STOCK',
+            'symbol': 'AAPL',
+            'name': 'Apple Inc.',
+            'quantity': Decimal('5'),
+            'purchase_price': Decimal('160'),
+            'current_price': Decimal('180'),
+            'purchase_date': '2024-01-20'
+        }
+        response2 = self.client.post('/api/portfolio/assets/', data2)
+        self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
+
+
+class AssetValidationTests(APITestCase):
+    
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_create_with_zero_price_values(self):
+        data = {
+            'asset_type': 'STOCK',
+            'symbol': 'AAPL',
+            'name': 'Apple Inc.',
+            'quantity': Decimal('10'),
+            'purchase_price': Decimal('0'),
+            'current_price': Decimal('175.25'),
+            'purchase_date': '2024-01-15'
+        }
+        response = self.client.post('/api/portfolio/assets/', data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_with_negative_current_price(self):
+        data = {
+            'asset_type': 'STOCK',
+            'symbol': 'AAPL',
+            'name': 'Apple Inc.',
+            'quantity': Decimal('10'),
+            'purchase_price': Decimal('150'),
+            'current_price': Decimal('-175'),
+            'purchase_date': '2024-01-15'
+        }
+        response = self.client.post('/api/portfolio/assets/', data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_with_zero_quantity(self):
+        data = {
+            'asset_type': 'STOCK',
+            'symbol': 'AAPL',
+            'name': 'Apple Inc.',
+            'quantity': Decimal('0'),
+            'purchase_price': Decimal('150'),
+            'current_price': Decimal('175'),
+            'purchase_date': '2024-01-15'
+        }
+        response = self.client.post('/api/portfolio/assets/', data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_missing_required_field(self):
+        data = {
+            'asset_type': 'STOCK',
+            'symbol': 'AAPL',
+            'name': 'Apple Inc.',
+            'quantity': Decimal('10'),
+            # missing purchase_price
+            'current_price': Decimal('175.25'),
+            'purchase_date': '2024-01-15'
+        }
+        response = self.client.post('/api/portfolio/assets/', data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class AssetUpdateTests(APITestCase):
+    
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        self.asset = Asset.objects.create(
+            user=self.user,
+            asset_type='STOCK',
+            symbol='AAPL',
+            name='Apple Inc.',
+            quantity=Decimal('10'),
+            purchase_price=Decimal('150.50'),
+            current_price=Decimal('175.25'),
+            purchase_date='2024-01-15'
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_update_current_price_only(self):
+        data = {'current_price': Decimal('200')}
+        response = self.client.patch(f'/api/portfolio/assets/{self.asset.id}/', data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.current_price, Decimal('200'))
+
+    def test_full_update_asset(self):
+        data = {
+            'asset_type': 'STOCK',
+            'symbol': 'AAPL',
+            'name': 'Apple Inc. Updated',
+            'quantity': Decimal('20'),
+            'purchase_price': Decimal('160'),
+            'current_price': Decimal('200'),
+            'purchase_date': '2024-01-15'
+        }
+        response = self.client.put(f'/api/portfolio/assets/{self.asset.id}/', data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.quantity, Decimal('20'))
+
+    def test_update_nonexistent_asset(self):
+        data = {'current_price': Decimal('200')}
+        response = self.client.patch('/api/portfolio/assets/9999/', data)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class PortfolioSummaryTests(APITestCase):
+    
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_summary_endpoint(self):
+        Asset.objects.create(
+            user=self.user,
+            asset_type='STOCK',
+            symbol='AAPL',
+            name='Apple',
+            quantity=Decimal('10'),
+            purchase_price=Decimal('100'),
+            current_price=Decimal('150'),
+            purchase_date='2024-01-15'
+        )
+        response = self.client.get('/api/portfolio/assets/summary/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('total_current_value', response.data)
+        self.assertIn('total_purchase_value', response.data)
+
+
+class PortfolioPerformanceTests(APITestCase):
+    
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_performance_endpoint(self):
+        Asset.objects.create(
+            user=self.user,
+            asset_type='STOCK',
+            symbol='AAPL',
+            name='Apple',
+            quantity=Decimal('10'),
+            purchase_price=Decimal('100'),
+            current_price=Decimal('150'),
+            purchase_date='2024-01-15'
+        )
+        response = self.client.get('/api/portfolio/assets/performance/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('total_assets', response.data)
+        self.assertIn('average_performance', response.data)

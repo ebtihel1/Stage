@@ -15,3 +15,7 @@ py manage.py runserver
 # Installation des dépendances
 pip install django djangorestframework (ORM) djangorestframework-simplejwt drf-spectacular pytest pytest-django
 
+# git
+git add .
+git commit -m
+git push
